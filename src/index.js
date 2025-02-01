@@ -1,22 +1,16 @@
- 
 const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3000;
+const connectDB = require('./config/config');
+const faqRoutes = require('./routes/index');
 
-// Middleware
+const app = express();
+
 app.use(express.json());
 
-// Routes
-app.get('/', (req, res) => {
-    res.send('Hello, Backend!');
-});
+connectDB();
 
-app.post('/api/data', (req, res) => {
-    const { name, message } = req.body;
-    res.json({ received: { name, message } });
-});
+app.use('/api', faqRoutes);
 
-// Start the server
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
