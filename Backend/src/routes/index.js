@@ -1,6 +1,8 @@
-const express = require('express');
+// routes/faqRoutes.js
+import express from 'express';
+import { createFaq, getFaqs, getFaqById, updateFaq, deleteFaq } from '../controllers/faqController.js';
+
 const router = express.Router();
-const { createFaq, getFaqs, getFaqById, updateFaq, deleteFaq } = require('../services/faqServices');
 
 router.post('/faq', createFaq);
 router.get('/faq', getFaqs);
@@ -8,4 +10,4 @@ router.get('/faq/:id', getFaqById);
 router.put('/faq/:id', updateFaq);
 router.delete('/faq/:id', deleteFaq);
 
-module.exports = router;
+export default router;

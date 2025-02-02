@@ -1,98 +1,143 @@
-const FAQ = require('../models/faqModel');
-const Redis = require('ioredis');
+import { v2 as Translate } from '@google-cloud/translate';
+import Redis from 'ioredis';
+import FAQ from '../models/faqModel.js';
+import { extractTextFromHTML } from '../utils/htmlUtils.js';
+
+const translateClient = new Translate.Translate({
+  keyFilename: 'src/config/ServiceKey.json',
+});
+
 const redis = new Redis();
-const { Translate } = require('@google-cloud/translate').v2;
 
-const translate = new Translate({ keyFilename: 'src/config/ServiceKey.json' });
+class FAQService {
+  // Create a new FAQ with translations.
+  async create_FAQ(data) {
+    try {
+      const { question, answer, answerHtml, languages } = data;
+      
+      // Extract plain text from answerHtml.
+      const answerText = extractTextFromHTML(answerHtml || "");
 
-const getCachedTranslation = async (faqId, lang) => redis.get(`faq:${faqId}:${lang}`);
+      // Generate translations for each language provided.
+      const translatePromises = languages.map(async (lang) => {
+        try {
+          // Translate the question.
+          const [translatedQuestion] = await translateClient.translate(question, lang);
+          // Translate the plain text answer.
+          const [translatedAnswer] = await translateClient.translate(answerText, lang);
+          // Translate the answerHtml if provided.
+          const translatedAnswerHtml = answerHtml
+            ? (await translateClient.translate(answerHtml, lang))[0]
+            : "";
 
-const setTranslationCache = async (faqId, lang, translation) => {
-  await redis.set(`faq:${faqId}:${lang}`, JSON.stringify(translation));
-};
+          return {
+            lang,
+            question: translatedQuestion,
+            answer: translatedAnswer,
+            answerHtml: translatedAnswerHtml,
+          };
+        } catch (error) {
+          console.error(`Translation to ${lang} failed:`, error);
+          return null;
+        }
+      });
 
-const autoTranslate = async (text, targetLang = 'en') => {
-  try {
-    const [translation] = await translate.translate(text, targetLang);
-    return translation;
-  } catch (err) {
-    console.error('Translation Error:', err);
-    return text;
+      const translatedResults = await Promise.all(translatePromises);
+      // Filter out any null translations.
+      const translations = translatedResults.filter(t => t !== null);
+
+      // Create and save the FAQ document.
+      const faq = await FAQ.create({
+        question,
+        answer: answerText,
+        answerHtml,
+        translations,
+      });
+
+      // Invalidate cached FAQs list.
+      await redis.del("faqs:all");
+
+      return faq;
+    } catch (error) {
+      console.error("Error in service layer (create_FAQ):", error);
+      throw error;
+    }
   }
-};
 
-const createFaq = async (req, res) => {
-  try {
-    const newFaq = new FAQ(req.body);
-    await newFaq.save();
-    res.status(201).json(newFaq);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  // Retrieve all FAQs with caching.
+  async get_FAQs() {
+    try {
+      // Check if FAQs are cached.
+      const cachedFaqs = await redis.get("faqs:all");
+      if (cachedFaqs) {
+        return JSON.parse(cachedFaqs);
+      }
+
+      const faqs = await FAQ.find();
+      // Cache the FAQs for 1 hour.
+      await redis.set("faqs:all", JSON.stringify(faqs), "EX", 3600);
+      return faqs;
+    } catch (error) {
+      console.error("Error in service layer (get_FAQs):", error);
+      throw error;
+    }
   }
-};
 
-const getFaqs = async (req, res) => {
-  try {
-    const faqs = await FAQ.find();
-    res.json(await translateFaqs(faqs, 'en'));
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  // Retrieve a single FAQ by ID with caching.
+  async get_FAQById(id) {
+    try {
+      const cacheKey = `faq:${id}`;
+      const cachedFaq = await redis.get(cacheKey);
+      if (cachedFaq) {
+        return JSON.parse(cachedFaq);
+      }
+
+      const faq = await FAQ.findById(id);
+      if (!faq) {
+        throw new Error('FAQ not found');
+      }
+      // Cache the FAQ for 1 hour.
+      await redis.set(cacheKey, JSON.stringify(faq), "EX", 3600);
+      return faq;
+    } catch (error) {
+      console.error("Error in service layer (get_FAQById):", error);
+      throw error;
+    }
   }
-};
 
-const getFaqById = async (req, res) => {
-  try {
-    const faq = await FAQ.findById(req.params.id);
-    if (!faq) return res.status(404).json({ message: 'FAQ not found' });
-    res.json(await translateFaq(faq, 'en'));
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  // Update FAQ (without re-translating).
+  async update_FAQ(id, faqData) {
+    try {
+      const updatedFaq = await FAQ.findByIdAndUpdate(id, faqData, { new: true });
+      if (!updatedFaq) {
+        throw new Error('FAQ not found');
+      }
+      // Invalidate the cache for this FAQ and the FAQs list.
+      await redis.del(`faq:${id}`);
+      await redis.del("faqs:all");
+      return updatedFaq;
+    } catch (error) {
+      console.error("Error in service layer (update_FAQ):", error);
+      throw error;
+    }
   }
-};
 
-const updateFaq = async (req, res) => {
-  try {
-    const updatedFaq = await FAQ.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedFaq) return res.status(404).json({ message: 'FAQ not found' });
-    await invalidateCache(req.params.id);
-    res.json(await translateFaq(updatedFaq, 'en'));
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  // Delete FAQ.
+  async delete_FAQ(id) {
+    try {
+      const deletedFaq = await FAQ.findByIdAndDelete(id);
+      if (!deletedFaq) {
+        throw new Error('FAQ not found');
+      }
+      // Invalidate the cache for this FAQ and the FAQs list.
+      await redis.del(`faq:${id}`);
+      await redis.del("faqs:all");
+      return deletedFaq;
+    } catch (error) {
+      console.error("Error in service layer (delete_FAQ):", error);
+      throw error;
+    }
   }
-};
+}
 
-const deleteFaq = async (req, res) => {
-  try {
-    const deletedFaq = await FAQ.findByIdAndDelete(req.params.id);
-    if (!deletedFaq) return res.status(404).json({ message: 'FAQ not found' });
-    await invalidateCache(req.params.id);
-    res.json(deletedFaq);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-const translateFaq = async (faq, lang) => {
-  if (faq.translations?.get(lang)) return faq;
-  const translated = {
-    question: await autoTranslate(faq.question, lang),
-    answer: await autoTranslate(faq.answer, lang),
-  };
-  if (!faq.translations) {
-    faq.translations = new Map();
-  }
-  faq.translations.set(lang, translated);
-  await faq.save();
-  await setTranslationCache(faq._id, lang, translated);
-  return faq;
-};
-
-const translateFaqs = async (faqs, lang) => Promise.all(faqs.map(faq => translateFaq(faq, lang)));
-
-const invalidateCache = async (faqId) => {
-  for (const lang of ['en', 'hi', 'bn']) {
-    await redis.del(`faq:${faqId}:${lang}`);
-  }
-};
-
-module.exports = { createFaq, getFaqs, getFaqById, updateFaq, deleteFaq };
+export default new FAQService();

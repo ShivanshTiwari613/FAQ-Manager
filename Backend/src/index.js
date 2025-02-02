@@ -1,12 +1,17 @@
-const express = require('express');
-const connectDB = require('./config/config');
-const faqRoutes = require('./routes/index');
+import express from 'express';
+import { connectDB } from './config/DBconfig.js';
+import faqRoutes from './routes/index.js';
+import cors from 'cors';
 
 const app = express();
 
+app.use(cors()); // Add this line to enable CORS
 app.use(express.json());
+
+// Connect to MongoDB
 connectDB();
-  
+
+// Routes
 app.use('/api', faqRoutes);
 
 const PORT = process.env.PORT || 5000;

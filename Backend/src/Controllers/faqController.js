@@ -1,97 +1,82 @@
-const faqService = require('../services/faqServices');
-const Joi = require('joi'); 
+// controllers/faqController.js
+import FAQService from '../services/faqServices.js';
+import Joi from 'joi';
 
 // Create FAQ
-exports.createFaq = async (req, res) => {
-  const { question, answer, languageCode } = req.body;
-
+export const createFaq = async (req, res) => {
+  const { question, answer, answerHtml, languages } = req.body;
+  
+  // Validate input.
   const schema = Joi.object({
-    question: Joi.string().required().min(5), 
+    question: Joi.string().min(5).required(),
     answer: Joi.string().required(),
-    languageCode: Joi.string().valid('en', 'hi', 'bn').required(), 
+    answerHtml: Joi.string().allow("").optional(),
+    languages: Joi.array().items(Joi.string()).required(),
   });
-
   const { error } = schema.validate(req.body);
-
   if (error) {
     return res.status(400).json({ message: error.details[0].message });
   }
-
+  
   try {
-    const faqData = { question, answer, languageCode };
-    const newFaq = await faqService.createFaq(faqData);
+    const newFaq = await FAQService.create_FAQ({ question, answer, answerHtml, languages });
     res.status(201).json(newFaq);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
-// Get All FAQs
-exports.getFaqs = async (req, res) => {
+// Get all FAQs
+export const getFaqs = async (req, res) => {
   try {
-    const faqs = await faqService.getFaqs();
-
-    const translatedFaqs = await Promise.all(faqs.map(async (faq) => {
-      const translatedQuestion = await faqService.autoTranslate(faq.question, 'en');
-      const translatedAnswer = await faqService.autoTranslate(faq.answer, 'en'); 
-      return { 
-        ...faq.toObject(), 
-        question: translatedQuestion, 
-        answer: translatedAnswer 
-      };
-    }));
-
-    res.status(200).json(translatedFaqs);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    const faqs = await FAQService.get_FAQs();
+    res.status(200).json(faqs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
-// Get Single FAQ by ID
-exports.getFaqById = async (req, res) => {
-  const { id } = req.params;
-
+// Get single FAQ by ID
+export const getFaqById = async (req, res) => {
   try {
-    const faq = await faqService.getFaqById(id);
+    const faq = await FAQService.get_FAQById(req.params.id);
     res.status(200).json(faq);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
 // Update FAQ
-exports.updateFaq = async (req, res) => {
+export const updateFaq = async (req, res) => {
   const { id } = req.params;
-  const { question, answer, languageCode } = req.body;
-
+  const { question, answer, answerHtml } = req.body;
+  
+  // Validate input.
   const schema = Joi.object({
-    question: Joi.string().required().min(5), 
+    question: Joi.string().min(5).required(),
     answer: Joi.string().required(),
-    languageCode: Joi.string().valid('en', 'hi', 'bn').required(), 
+    answerHtml: Joi.string().allow("").optional(),
   });
-
   const { error } = schema.validate(req.body);
-
   if (error) {
     return res.status(400).json({ message: error.details[0].message });
   }
-
+  
   try {
-    const faqData = { question, answer, languageCode };
-    const updatedFaq = await faqService.updateFaq(id, faqData);
+    const updatedFaq = await FAQService.update_FAQ(id, { question, answer, answerHtml });
     res.status(200).json(updatedFaq);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
-exports.deleteFaq = async (req, res) => {
+// Delete FAQ
+export const deleteFaq = async (req, res) => {
   const { id } = req.params;
-
   try {
-    const deletedFaq = await faqService.deleteFaq(id);
-    res.status(200).json({ message: 'FAQ deleted successfully' }); 
-  } catch (error) { 
-    res.status(500).json({ message: error.message }); 
-  } 
+    await FAQService.delete_FAQ(id);
+    res.status(200).json({ message: "FAQ deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
