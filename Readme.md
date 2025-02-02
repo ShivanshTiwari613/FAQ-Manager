@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Multilingual FAQ Manager
 
 ## Overview
