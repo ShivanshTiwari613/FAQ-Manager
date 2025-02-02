@@ -1,7 +1,7 @@
 // src/pages/FaqPage.jsx
 import React, { useState } from 'react';
-import FAQForm from '../Components/FAQForm';
-import FAQList from '../Components/FAQList';
+import FAQForm from '../Components/FaqForm';
+import FAQList from '../Components/FaqList';
 
 const FaqPage = () => {
   const [refresh, setRefresh] = useState(false);

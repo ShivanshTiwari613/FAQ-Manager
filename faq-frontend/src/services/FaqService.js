@@ -9,13 +9,13 @@ export const createFaq = async (data) => {
     return response.data;
   } catch (error) {
     if (error.response) {
-      // Server responded with a status other than 200 range
+
       console.error('Server Error:', error.response.data);
     } else if (error.request) {
-      // Request was made but no response received
+      
       console.error('Network Error:', error.request);
     } else {
-      // Something else happened
+      
       console.error('Error:', error.message);
     }
     throw error;

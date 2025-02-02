@@ -1,0 +1,38 @@
+version: '3'
+services:
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend  # Path to your frontend directory
+    ports:
+      - "3000:3000"  
+    volumes:
+      - ./frontend:/app 
+    depends_on:
+      - backend  
+
+  # Backend service (Node.js or Django)
+  backend:
+    build:
+      context: ./backend  
+    ports:
+      - "5000:5000" 
+    volumes:
+      - ./backend:/app  
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/my_database  
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo  
+
+  # MongoDB service
+  mongo:
+    image: mongo:latest 
+    ports:
+      - "27017:27017"  
+    volumes:
+      - mongo-data:/data/db  
+
+volumes:
+  mongo-data:

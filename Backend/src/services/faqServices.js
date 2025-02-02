@@ -15,17 +15,15 @@ class FAQService {
     try {
       const { question, answer, answerHtml, languages } = data;
       
-      // Extract plain text from answerHtml.
       const answerText = extractTextFromHTML(answerHtml || "");
 
-      // Generate translations for each language provided.
       const translatePromises = languages.map(async (lang) => {
         try {
-          // Translate the question.
+
           const [translatedQuestion] = await translateClient.translate(question, lang);
-          // Translate the plain text answer.
+
           const [translatedAnswer] = await translateClient.translate(answerText, lang);
-          // Translate the answerHtml if provided.
+
           const translatedAnswerHtml = answerHtml
             ? (await translateClient.translate(answerHtml, lang))[0]
             : "";
@@ -43,10 +41,9 @@ class FAQService {
       });
 
       const translatedResults = await Promise.all(translatePromises);
-      // Filter out any null translations.
+      
       const translations = translatedResults.filter(t => t !== null);
 
-      // Create and save the FAQ document.
       const faq = await FAQ.create({
         question,
         answer: answerText,
@@ -54,7 +51,7 @@ class FAQService {
         translations,
       });
 
-      // Invalidate cached FAQs list.
+      // Invalidate the cache for the FAQs list.
       await redis.del("faqs:all");
 
       return faq;
@@ -64,10 +61,9 @@ class FAQService {
     }
   }
 
-  // Retrieve all FAQs with caching.
   async get_FAQs() {
     try {
-      // Check if FAQs are cached.
+
       const cachedFaqs = await redis.get("faqs:all");
       if (cachedFaqs) {
         return JSON.parse(cachedFaqs);
@@ -83,7 +79,6 @@ class FAQService {
     }
   }
 
-  // Retrieve a single FAQ by ID with caching.
   async get_FAQById(id) {
     try {
       const cacheKey = `faq:${id}`;
@@ -105,14 +100,13 @@ class FAQService {
     }
   }
 
-  // Update FAQ (without re-translating).
   async update_FAQ(id, faqData) {
     try {
       const updatedFaq = await FAQ.findByIdAndUpdate(id, faqData, { new: true });
       if (!updatedFaq) {
         throw new Error('FAQ not found');
       }
-      // Invalidate the cache for this FAQ and the FAQs list.
+
       await redis.del(`faq:${id}`);
       await redis.del("faqs:all");
       return updatedFaq;
@@ -129,7 +123,7 @@ class FAQService {
       if (!deletedFaq) {
         throw new Error('FAQ not found');
       }
-      // Invalidate the cache for this FAQ and the FAQs list.
+
       await redis.del(`faq:${id}`);
       await redis.del("faqs:all");
       return deletedFaq;

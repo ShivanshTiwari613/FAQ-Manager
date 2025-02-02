@@ -5,10 +5,10 @@ import cors from 'cors';
 
 const app = express();
 
-app.use(cors()); // Add this line to enable CORS
+app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
+
 connectDB();
 
 // Routes
