@@ -3,6 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { getFaqs } from "../services/FaqService";
 import '../index.css';
 
+const stripHtmlTags = (str) => {
+  return str ? str.replace(/<\/?[^>]+(>|$)/g, "") : "";
+};
+
 const FAQList = () => {
   const [faqs, setFaqs] = useState([]);
   const [error, setError] = useState(null);
@@ -31,7 +35,7 @@ const FAQList = () => {
         {faqs.length > 0 ? (
           faqs.map((faq, idx) => (
             <div key={faq._id} className="faq-item">
-              <h3>{idx + 1}. {faq.question}</h3>
+              <h3>{idx + 1}. {stripHtmlTags(faq.question)}</h3>
               <div className="faq-answer" dangerouslySetInnerHTML={{ __html: faq.answerHtml || faq.answer }} />
 
               {faq.translations && faq.translations.length > 0 ? (
@@ -41,7 +45,7 @@ const FAQList = () => {
                     {faq.translations.map((t, index) => (
                       <li key={index}>
                         <strong>[{t.lang ? t.lang.toUpperCase() : 'N/A'}]</strong>
-                        <span> {t.question || 'No question'} - </span>
+                        <span> {stripHtmlTags(t.question) || 'No question'} - </span>
                         <span dangerouslySetInnerHTML={{ __html: t.answerHtml || t.answer || 'No answer available' }} />
                       </li>
                     ))}
